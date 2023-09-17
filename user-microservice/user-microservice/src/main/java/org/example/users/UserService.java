@@ -7,6 +7,8 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
+
 @Service
 @Slf4j
 public class UserService {
@@ -18,11 +20,15 @@ public class UserService {
 
     public Mono<UserDto> getUserById(int id) {
 
-        Mono<UserDetailsDto> userDetails = getUserDetails(id);
-        Mono<UserCareerDto> userCareer = getCareerDetails(id);
+        Mono<UserDetailsDto> userDetails = getUserDetails(id).doOnError(this::handleError);
+        Mono<UserCareerDto> userCareer = getCareerDetails(id).doOnError(this::handleError);
 
         return userDetails.zipWith(userCareer)
                 .map(tuple -> build(tuple.getT1(), tuple.getT2()));
+    }
+
+    private Mono<UserDetailsDto> handleError(Throwable throwable) {
+        throw new RuntimeException("Error in fetching user data :Message:" + throwable.getMessage());
     }
 
     private UserDto build(UserDetailsDto user, UserCareerDto career) {
@@ -42,7 +48,8 @@ public class UserService {
         return webClient.get()
                 .uri(id + "")
                 .retrieve()
-                .bodyToMono(UserDetailsDto.class);
+                .bodyToMono(UserDetailsDto.class)
+                .timeout(Duration.ofSeconds(2));
     }
 
     private Mono<UserCareerDto> getCareerDetails(int id) {
